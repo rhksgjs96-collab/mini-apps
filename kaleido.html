@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kaleido Pad</title>
+<style>
+  :root{--bg:#0c0d12;--panel:#161821;--line:#2a2f3a;--text:#e7e9ee;--muted:#9aa3b2;--accent:#5b8cff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    display:flex;flex-direction:column;min-height:100vh}
+  header{display:flex;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line)}
+  h1{font-size:17px;margin:0;font-weight:650}
+  header a{color:var(--muted);text-decoration:none;font-size:13px;margin-left:auto}
+  header a:hover{color:var(--text)}
+  .stage{flex:1;display:grid;place-items:center;padding:18px;overflow:hidden}
+  canvas{background:#000;border-radius:12px;border:1px solid var(--line);touch-action:none;
+    max-width:100%;max-height:100%;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+  .bar{display:flex;flex-wrap:wrap;gap:16px;align-items:center;padding:12px 18px 18px;
+    border-top:1px solid var(--line);justify-content:center}
+  .ctl{display:flex;align-items:center;gap:8px;color:var(--muted)}
+  .ctl input[type=range]{width:120px;accent-color:var(--accent)}
+  .ctl b{color:var(--text);min-width:26px;text-align:right;font-variant-numeric:tabular-nums}
+  button{background:#1e222b;color:var(--text);border:1px solid var(--line);border-radius:9px;
+    padding:8px 14px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  label.chk{display:flex;align-items:center;gap:6px;color:var(--muted);cursor:pointer}
+</style>
+</head>
+<body>
+<header>
+  <h1>Kaleido Pad</h1>
+  <span style="color:var(--muted);font-size:13px">drag on the canvas</span>
+  <a href="index.html">← all apps</a>
+</header>
+
+<div class="stage"><canvas id="c" width="720" height="720"></canvas></div>
+
+<div class="bar">
+  <div class="ctl">slices <input id="slices" type="range" min="2" max="24" value="8"><b id="slicesV">8</b></div>
+  <div class="ctl">brush <input id="size" type="range" min="1" max="20" value="4"><b id="sizeV">4</b></div>
+  <div class="ctl">hue drift <input id="drift" type="range" min="0" max="6" value="2"><b id="driftV">2</b></div>
+  <label class="chk"><input id="mirror" type="checkbox" checked> mirror</label>
+  <button id="save">Save PNG</button>
+  <button id="clear">Clear</button>
+</div>
+
+<script>
+const c = document.getElementById("c");
+const ctx = c.getContext("2d");
+const S = c.width, R = S/2;
+let slices = 8, size = 4, drift = 2, mirror = true, hue = Math.random()*360;
+let drawing = false, last = null;
+
+const $ = id => document.getElementById(id);
+function bind(id, fn){
+  const el = $(id), out = $(id+"V");
+  el.addEventListener("input", ()=>{ fn(+el.value); if(out) out.textContent = el.value; });
+}
+bind("slices", v=>slices=v);
+bind("size", v=>size=v);
+bind("drift", v=>drift=v);
+$("mirror").addEventListener("change", e=>mirror=e.target.checked);
+
+function bg(){ ctx.fillStyle="#000"; ctx.fillRect(0,0,S,S); }
+bg();
+
+function pos(e){
+  const r = c.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return { x:(t.clientX-r.left)*(S/r.width)-R, y:(t.clientY-r.top)*(S/r.height)-R };
+}
+function stroke(a, b){
+  hue = (hue + drift*0.6) % 360;
+  ctx.strokeStyle = `hsl(${hue} 90% 60%)`;
+  ctx.lineWidth = size;
+  ctx.lineCap = "round";
+  ctx.save();
+  ctx.translate(R, R);
+  for(let i=0;i<slices;i++){
+    ctx.rotate((Math.PI*2)/slices);
+    for(const s of (mirror ? [1,-1] : [1])){
+      ctx.beginPath();
+      ctx.moveTo(a.x*s, a.y);
+      ctx.lineTo(b.x*s, b.y);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+function start(e){ drawing=true; last=pos(e); e.preventDefault(); }
+function move(e){ if(!drawing) return; const p=pos(e); stroke(last,p); last=p; e.preventDefault(); }
+function end(){ drawing=false; last=null; }
+
+c.addEventListener("mousedown", start);
+c.addEventListener("mousemove", move);
+window.addEventListener("mouseup", end);
+c.addEventListener("touchstart", start, {passive:false});
+c.addEventListener("touchmove", move, {passive:false});
+c.addEventListener("touchend", end);
+
+$("clear").onclick = bg;
+$("save").onclick = ()=>{
+  const a = document.createElement("a");
+  a.download = "kaleido-" + Date.now() + ".png";
+  a.href = c.toDataURL("image/png");
+  a.click();
+};
+</script>
+</body>
+</html>
